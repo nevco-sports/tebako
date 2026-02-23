@@ -203,6 +203,20 @@ module Tebako
           "/* tebako patched */ static const struct vktable *console_win32_vk(const char *, size_t);"
       }.freeze
 
+      # Workaround for clock_gettime/clock_getres redefinition error on MSYS2.
+      # MSYS2 winpthreads (>= 12.0.0.r720) provides clock_gettime as a static
+      # inline function in pthread_time.h, conflicting with Ruby's definition
+      # in win32/win32.c (fixed upstream in Ruby 3.4.4+ / 3.3.8+).
+      # We rename Ruby's definitions so they don't conflict.
+      # This must be applied in pass1, before the toolchain build compiles Ruby.
+      # See: https://bugs.ruby-lang.org/issues/21327
+      WIN32_WIN32_C_CLOCK_PATCHES = {
+        "clock_gettime(clockid_t clock_id, struct timespec *sp)" =>
+          "_dummy_clock_gettime(clockid_t clock_id, struct timespec *sp)",
+        "clock_getres(clockid_t clock_id, struct timespec *sp)" =>
+          "_dummy_clock_getres(clockid_t clock_id, struct timespec *sp)"
+      }.freeze
+
       def patch_map
         pm = msys_patches
         pm.merge!(super)
@@ -252,6 +266,10 @@ module Tebako
 
       def msys_patches
         pm = msys_base_patches
+
+        # ....................................................
+        # Rename clock_gettime/clock_getres to avoid redefinition with MSYS2 winpthreads
+        pm.store("win32/win32.c", WIN32_WIN32_C_CLOCK_PATCHES)
 
         if @ruby_ver.ruby3x7?
           # ....................................................
