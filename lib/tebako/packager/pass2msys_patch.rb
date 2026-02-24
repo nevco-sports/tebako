@@ -130,6 +130,10 @@ module Tebako
     class Pass2MSysPatch < Pass2Patch
       def patch_map
         pm = super
+        # Ensure ext/extinit.c is regenerated with all static extension Init_ functions.
+        # Without this, the final build may use a stale extinit.c that doesn't register
+        # statically-linked extensions like strscan, causing LoadError at runtime.
+        pm.store("common.mk", COMMON_MK_PATCH) if @ruby_ver.ruby3x?
         pm.merge!(msys_patches)
         pm.store("config.status", get_config_status_patch(@ostype, @deps_lib_dir, @ruby_ver))
         pm
