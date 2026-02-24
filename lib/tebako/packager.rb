@@ -152,6 +152,20 @@ module Tebako
 
         patch = crt_pass2_patch(ostype, deps_lib_dir, ruby_ver)
         do_patch(patch.patch_map, ruby_source_dir)
+
+        # On MSYS/Windows, delete ext/extinit.c so make regenerates it with all
+        # static extension Init_ functions during target_build. We cannot use
+        # COMMON_MK_PATCH on MSYS because its $(EXTS_MK) dependency triggers extmk
+        # which fails with -L flags injected by the config.status patch.
+        if ScenarioManagerBase.new(ostype).msys?
+          %w[ext/extinit.c ext/extinit.o].each do |f|
+            path = File.join(ruby_source_dir, f)
+            if File.exist?(path)
+              FileUtils.rm_f(path)
+              puts "   ... removed #{f} to force regeneration with static extensions"
+            end
+          end
+        end
       end
 
       # Stash
