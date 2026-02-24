@@ -110,13 +110,20 @@ module Tebako
         len = GetCurrentDirectoryW(0, NULL);
     SUBST
 
-    # NOTE: clock_gettime/clock_getres rename patches moved to pass1 (Pass1MSysPatch)
-    # so they are applied before the toolchain build compiles Ruby.
+    # Workaround for clock_gettime/clock_getres redefinition error on MSYS2.
+    # These renames must be present in BOTH pass1 and pass2 because:
+    # - pass1 rename is needed for the toolchain build (stash/make)
+    # - pass2 restore_and_save restores the original file, so the rename
+    #   must be re-applied here for the final build
     # See: https://bugs.ruby-lang.org/issues/21327
     WIN32_WIN32_C_MSYS_PATCHES = {
       "#if defined _MSC_VER && _MSC_VER <= 1200" =>
         "#{PatchLiterals::C_FILE_SUBST_LESS}\n#if defined _MSC_VER && _MSC_VER <= 1200",
-      "len = GetCurrentDirectoryW(0, NULL);" => WIN32_WIN32_C_MSYS_SUBST
+      "len = GetCurrentDirectoryW(0, NULL);" => WIN32_WIN32_C_MSYS_SUBST,
+      "clock_gettime(clockid_t clock_id, struct timespec *sp)" =>
+        "_dummy_clock_gettime(clockid_t clock_id, struct timespec *sp)",
+      "clock_getres(clockid_t clock_id, struct timespec *sp)" =>
+        "_dummy_clock_getres(clockid_t clock_id, struct timespec *sp)"
     }.freeze
 
     # Msys Pass2 patches
