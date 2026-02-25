@@ -126,13 +126,13 @@ module Tebako
         "_dummy_clock_getres(clockid_t clock_id, struct timespec *sp)"
     }.freeze
 
-    # Patch ext/extmk.rb to ignore linker flags (-L, -l:, -I) that leak into
-    # its command-line arguments via LDFLAGS on MSYS. Without this, extmk aborts
-    # with "invalid option: -LC:/tebako-prefix/deps/lib" when COMMON_MK_PATCH
+    # Patch ext/extmk.rb to ignore all unknown options (linker flags like -L,
+    # -Wl, -I etc.) that leak into its command-line arguments via LDFLAGS on
+    # MSYS. Without this, extmk aborts with "invalid option" when COMMON_MK_PATCH
     # triggers extension reconfiguration.
     EXTMK_RB_MSYS_PATCH = {
       "retry if /^--/ =~ e.args[0]" =>
-        "retry if /^--/ =~ e.args[0] || /^-[LlI]/ =~ e.args[0]  # tebako: ignore linker flags"
+        "retry  # tebako: ignore all unknown options (linker flags from LDFLAGS)"
     }.freeze
 
     # Msys Pass2 patches
