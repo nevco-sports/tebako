@@ -96,17 +96,37 @@ module Tebako
       def finalize(src_dir, app_name, ruby_ver, patchelf, output_type)
         puts "-- Running finalize script"
 
-        # On MSYS/Windows, force ext/extinit.c regeneration before target_build.
-        # COMMON_MK_PATCH cannot be used on MSYS because it causes a make -j race
-        # condition (extinit.o compilation vs ruby.exe linking). Instead, delete
-        # the stale files so make regenerates extinit.c from the template using
-        # the already-correct exts.mk (which lists all static extensions).
+        # On MSYS/Windows, prevent exts.mk regeneration and force extinit.c
+        # regeneration before target_build.
+        #
+        # Background: pass2 patches config.status with MAINLIBS that include Tebako
+        # libraries (libtebako-fs.a, libdwarfs-wr.a). These libraries reference
+        # Win32-specific Ruby symbols (rb_w32_ugetcwd, etc.) that only exist in the
+        # full ruby.exe. When finalize's `make` regenerates the Makefile (because
+        # config.status was patched), it can trigger exts.mk regeneration via
+        # ext/configure-ext.mk. During this regeneration, extmk.rb re-runs each
+        # extension's extconf.rb, and mkmf's have_func/try_link tests fail because
+        # the Tebako libraries have unresolvable Ruby Win32 symbols. This causes
+        # extensions like strscan, date, socket, openssl, etc. to be excluded from
+        # EXTINITS and EXTOBJS.
+        #
+        # The stash step (which runs BEFORE pass2) builds extensions with simple
+        # LDFLAGS (no Tebako libraries), so all extensions configure successfully.
+        # By touching exts.mk, we prevent its regeneration and preserve the stash's
+        # correct EXTINITS and EXTOBJS. We delete extinit.c/o so they get regenerated
+        # from the preserved correct EXTINITS.
         if ScenarioManagerBase.new.msys?
+          exts_mk = File.join(src_dir, "exts.mk")
+          if File.exist?(exts_mk)
+            FileUtils.touch(exts_mk, mtime: Time.now + 3600)
+            puts "   ... touched exts.mk to prevent regeneration (preserving stash EXTINITS)"
+          end
+
           %w[ext/extinit.c ext/extinit.o].each do |f|
             path = File.join(src_dir, f)
             if File.exist?(path)
               FileUtils.rm_f(path)
-              puts "   ... removed #{f} to force regeneration with static extensions"
+              puts "   ... removed #{f} to force regeneration with correct EXTINITS"
             end
           end
         end
