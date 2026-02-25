@@ -126,23 +126,17 @@ module Tebako
         "_dummy_clock_getres(clockid_t clock_id, struct timespec *sp)"
     }.freeze
 
-    # Patch ext/extmk.rb to ignore all unknown options (linker flags like -L,
-    # -Wl, -I etc.) that leak into its command-line arguments via LDFLAGS on
-    # MSYS. Without this, extmk aborts with "invalid option" when COMMON_MK_PATCH
-    # triggers extension reconfiguration.
-    EXTMK_RB_MSYS_PATCH = {
-      "retry if /^--/ =~ e.args[0]" =>
-        "retry  # tebako: ignore all unknown options (linker flags from LDFLAGS)"
-    }.freeze
-
     # Msys Pass2 patches
     class Pass2MSysPatch < Pass2Patch
       def patch_map
         pm = super
-        # Ensure ext/extinit.c is regenerated with all static extension Init_ functions.
-        # Without this, the final build may use a stale extinit.c that doesn't register
-        # statically-linked extensions like strscan, causing LoadError at runtime.
-        pm.store("common.mk", COMMON_MK_PATCH) if @ruby_ver.ruby3x?
+        # Note: COMMON_MK_PATCH is NOT used on MSYS because:
+        # 1. Its $(EXTS_MK) dependency triggers extmk which fails with LDFLAGS
+        #    leaking -L/-Wl flags as command-line arguments
+        # 2. Even with extmk patched, the $(EXTS_MK) rebuild causes a make -j
+        #    race condition between ext/extinit.o compilation and ruby.exe linking
+        # Instead, ext/extinit.c is deleted in finalize() (see Packager.finalize)
+        # which forces make to regenerate it from the template using exts.mk.
         pm.merge!(msys_patches)
         pm.store("config.status", get_config_status_patch(@ostype, @deps_lib_dir, @ruby_ver))
         pm
@@ -199,7 +193,6 @@ module Tebako
       def msys_patches
         {
           "cygwin/GNUmakefile.in" => gnumakefile_in_patch_p2,
-          "ext/extmk.rb" => EXTMK_RB_MSYS_PATCH,
           "ruby.c" => RUBY_C_MSYS_PATCHES,
           "win32/file.c" => WIN32_FILE_C_MSYS_PATCHES,
           "win32/win32.c" => WIN32_WIN32_C_MSYS_PATCHES

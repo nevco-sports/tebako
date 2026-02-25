@@ -96,6 +96,21 @@ module Tebako
       def finalize(src_dir, app_name, ruby_ver, patchelf, output_type)
         puts "-- Running finalize script"
 
+        # On MSYS/Windows, force ext/extinit.c regeneration before target_build.
+        # COMMON_MK_PATCH cannot be used on MSYS because it causes a make -j race
+        # condition (extinit.o compilation vs ruby.exe linking). Instead, delete
+        # the stale files so make regenerates extinit.c from the template using
+        # the already-correct exts.mk (which lists all static extensions).
+        if ScenarioManagerBase.new.msys?
+          %w[ext/extinit.c ext/extinit.o].each do |f|
+            path = File.join(src_dir, f)
+            if File.exist?(path)
+              FileUtils.rm_f(path)
+              puts "   ... removed #{f} to force regeneration with static extensions"
+            end
+          end
+        end
+
         RubyBuilder.new(ruby_ver, src_dir).target_build(output_type)
         exe_suffix = ScenarioManagerBase.new.exe_suffix
         src_name = File.join(src_dir, "ruby#{exe_suffix}")
