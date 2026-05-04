@@ -281,6 +281,11 @@ else(DWARFS_PRELOAD)
     GIT_TAG ${DWARFS_WR_TAG}
     SOURCE_DIR ${DWARFS_WR_SOURCE_DIR}
     BINARY_DIR ${DWARFS_WR_BINARY_DIR}
+    # Redirect the inner _dwarfs dependency to nevco-sports/dwarfs which includes
+    # a fix for mkdwarfs crashing on Windows with GCC 16 when symlink_status
+    # returns not_found for certain gem source files.
+    # See: https://github.com/mhx/dwarfs/commit/51bd06e (adapted for v0.7.x)
+    PATCH_COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/patches/redirect-dwarfs-to-nevco.py
     UPDATE_COMMAND ""
     BUILD_COMMAND ${CMAKE_COMMAND} --build ${DWARFS_WR_BINARY_DIR} --parallel ${NCORES}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${DEPS}
